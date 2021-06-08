@@ -4,6 +4,8 @@ from matplotlib.patches import Rectangle
 
 import imageIO.png
 
+import math
+
 
 def createInitializedGreyscalePixelArray(image_width, image_height, initValue = 0):
 
@@ -74,7 +76,166 @@ def writeGreyscalePixelArraytoPNG(output_filename, pixel_array, image_width, ima
     writer.write(file, pixel_array)
     file.close()
 
+def computeRGBToGreyscale(pixel_array_r, pixel_array_g, pixel_array_b, image_width, image_height):
+    
+    gray = createInitializedGreyscalePixelArray(image_width, image_height)
+    
+    
+    for i in range(image_height):
+        
+        for j in range(image_width):
+            
+            calculation = round((0.299 * pixel_array_r[i][j]) + (0.587 * pixel_array_g[i][j]) + (0.114 * pixel_array_b[i][j]))
+            gray[i][j] = calculation
+            
+    return gray
 
+def scaleTo0And255AndQuantize(pixel_array, image_width, image_height):
+    
+    gray = createInitializedGreyscalePixelArray(image_width, image_height)
+    
+    maximumvalue = -256
+    minimumvalue = 256
+    
+    
+    for i in range(image_height):
+        
+        for j in range(image_width):
+            
+            if pixel_array[i][j] > maximumvalue:
+                maximumvalue = pixel_array[i][j]
+                
+            if pixel_array[i][j] < minimumvalue:
+                minimumvalue = pixel_array[i][j]
+    
+    zeroCalc = maximumvalue - minimumvalue
+    
+    if zeroCalc == 0:
+        zeroCalc = 1
+    
+    for i in range(image_height):
+        for j in range(image_width):
+            
+            gray[i][j] = round((pixel_array[i][j] - minimumvalue) * (255 / zeroCalc))
+    
+    return gray
+
+def computeVerticalEdgesSobelAbsolute(pixel_array, image_width, image_height):
+    gray = createInitializedGreyscalePixelArray(image_width, image_height)
+    
+    for i in range(1, image_height - 1):
+        for j in range(1, image_width-1):
+        
+            total = 0
+            total = total - pixel_array[i - 1][j - 1]
+            total = total - pixel_array[i + 1][j - 1] 
+            total = total - (pixel_array[i][j - 1] * 2)
+            
+            total = pixel_array[i - 1][j + 1] + total
+            total = pixel_array[i + 1][j + 1] + total
+            total = (pixel_array[i][j + 1] * 2) + total
+            
+            
+            gray[i][j] = (total) / 8   
+    
+    return gray
+
+def computeHorizontalEdgesSobelAbsolute(pixel_array, image_width, image_height):
+    gray = createInitializedGreyscalePixelArray(image_width, image_height)
+    
+    for i in range(1, image_height - 1):
+        
+        for j in range(1, image_width - 1):
+            total = 0
+            
+            total = total - pixel_array[i + 1][j - 1]
+            total = total - pixel_array[i + 1][j + 1]
+            total = total - (pixel_array[i + 1][j] * 2)
+            
+            total = pixel_array[i - 1][j - 1] + total
+            total = pixel_array[i - 1][j + 1] + total
+            total = (pixel_array[i - 1][j] * 2) + total
+            
+            
+        
+            gray[i][j] = (total) / 8   
+    
+    return gray
+
+def computeEdgeMagnitude(horizontalArray, verticalArray, image_width, image_height):
+    gray = createInitializedGreyscalePixelArray(image_width, image_height)
+
+    for i in range(image_height):
+        for j in range(image_width):
+            calc = math.pow(horizontalArray[i][j], 2) + math.pow(verticalArray[i][j], 2)
+            gray[i][j] = math.sqrt(calc)
+    return gray
+
+def computeGaussianAveraging3x3RepeatBorder(pixel_array, image_width, image_height):
+    bordered = createInitializedGreyscalePixelArray(image_width + 2, image_height + 2)
+    gray = createInitializedGreyscalePixelArray(image_width, image_height)
+    
+    for i in range(0, image_height):
+        for j in range(0, image_width):
+            bordered[i + 1][j + 1] = pixel_array[i][j]
+            
+            if (j == 0):
+                bordered[i + 1][j] = pixel_array[i][j]
+            
+            if (i == 0):
+                bordered[i][j + 1] = pixel_array[i][j]
+            
+            if (i == image_height - 1):
+                bordered[i + 2][j + 1] = pixel_array[i][j]
+            
+            if (i == 0 and j == 0):
+                bordered[i][j] = pixel_array[i][j]
+                
+            if (j == image_width - 1):
+                bordered[i + 1][j + 2] = pixel_array[i][j]
+            
+            if (i == 0 and j == image_width - 1):
+                bordered[i][j + 2] = pixel_array[i][j]
+
+            if ((i == image_height - 1) and (j == image_width - 1)):
+                bordered[i + 2][j + 2] = pixel_array[i][j]
+                
+            if ((i == image_height - 1) and (j == 0)):
+                bordered[i + 2][j] = pixel_array[i][j]
+            
+    for i in range(1, image_height + 1):
+        
+        for j in range(1, image_width + 1):
+            total = 0
+            
+            total = bordered[i - 1][j - 1] + total
+            total = bordered[i - 1][j + 1] + total
+            total = bordered[i - 1][j] * 2 + total
+            total = bordered[i][j - 1] * 2 + total
+            total = bordered[i][j + 1] * 2 + total
+            total = bordered[i][j] * 4 + total
+            total = bordered[i + 1][j - 1] + total
+            total = bordered[i + 1][j + 1] + total
+            total = bordered[i + 1][j] * 2 + total
+
+            gray[i - 1] [j - 1] = total / 16
+            
+    return gray
+
+def computeThresholdGE(pixel_array, image_width, image_height):
+    
+    gray = createInitializedGreyscalePixelArray(image_width, image_height)
+    threshold_value = 70
+    for i in range(image_height):
+        for j in range(image_width):
+            
+            if (pixel_array[i][j] < threshold_value):
+                gray[i][j] = 0
+            
+            else:
+                gray[i][j] = 255
+    
+    return gray
 
 def main():
     filename = "./images/covid19QRCode/poster1small.png"
@@ -82,9 +243,26 @@ def main():
     # we read in the png file, and receive three pixel arrays for red, green and blue components, respectively
     # each pixel array contains 8 bit integer values between 0 and 255 encoding the color values
     (image_width, image_height, px_array_r, px_array_g, px_array_b) = readRGBImageToSeparatePixelArrays(filename)
+    #Change to gray
+    gray = computeRGBToGreyscale(px_array_r, px_array_g, px_array_b, image_width, image_height)
+    contrastStretch = scaleTo0And255AndQuantize(gray, image_width, image_height)
 
-    pyplot.imshow(prepareRGBImageForImshowFromIndividualArrays(px_array_r, px_array_g, px_array_b, image_width, image_height))
+    horizontalEdges = computeHorizontalEdgesSobelAbsolute(contrastStretch, image_width, image_height)
+    verticalEdges = computeVerticalEdgesSobelAbsolute(contrastStretch, image_width, image_height)
+    gradientArray = computeEdgeMagnitude(horizontalEdges, verticalEdges, image_width, image_height)
+    #rerunning smooth
+    smoothGaussian = computeGaussianAveraging3x3RepeatBorder(gradientArray, image_width, image_height)
+    smoothGaussian = computeGaussianAveraging3x3RepeatBorder(smoothGaussian, image_width, image_height)
+    smoothGaussian = computeGaussianAveraging3x3RepeatBorder(smoothGaussian, image_width, image_height)
+    smoothGaussian = computeGaussianAveraging3x3RepeatBorder(smoothGaussian, image_width, image_height)
+    smoothGaussian = computeGaussianAveraging3x3RepeatBorder(smoothGaussian, image_width, image_height)
+    smoothGaussian = computeGaussianAveraging3x3RepeatBorder(smoothGaussian, image_width, image_height)
+    contrastStretch = scaleTo0And255AndQuantize(smoothGaussian, image_width, image_height)
+    
+    computeThreshold = computeThresholdGE(contrastStretch, image_width, image_height)
 
+    pyplot.imshow(smoothGaussian, cmap="gray")
+    
     # get access to the current pyplot figure
     axes = pyplot.gca()
     # create a 70x50 rectangle that starts at location 10,30, with a line width of 3
